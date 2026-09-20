@@ -1,73 +1,70 @@
-const CACHE_NAME = "ot-manager-v1";
-const REPO_PATH = "/ot-management";
+const CACHE_NAME = "ot-management-shell-v1";
 
-const urlsToCache = [
-  REPO_PATH + "/",
-  REPO_PATH + "/index.html",
-  REPO_PATH + "/manifest.json"
+const APP_SHELL = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./favicon.png"
 ];
 
 self.addEventListener("install", (event) => {
-  console.log("[Service Worker] Installing...");
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache).catch((err) => {
-        console.log("[Service Worker] Cache addAll error:", err);
-      });
-    })
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  console.log("[Service Worker] Activating...");
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log("[Service Worker] Deleting old cache:", cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+  const request = event.request;
+  const url = new URL(request.url);
 
+  // Firebase / Google API requests should always use the network.
   if (
-    event.request.url.includes("firebase") ||
-    event.request.url.includes("googleapis.com") ||
-    event.request.url.includes("gstatic.com")
+    url.hostname.includes("googleapis.com") ||
+    url.hostname.includes("gstatic.com") ||
+    url.hostname.includes("firebaseio.com") ||
+    url.hostname.includes("firebaseapp.com")
+  ) {
+    return;
+  }
+
+  // Only handle GET requests from this website.
+  if (
+    request.method !== "GET" ||
+    url.origin !== self.location.origin
   ) {
     return;
   }
 
   event.respondWith(
-    fetch(event.request)
+    fetch(request)
       .then((response) => {
-        if (response && response.status === 200) {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache).catch(() => {});
-          });
-        }
+        const copy = response.clone();
+
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(request, copy);
+        });
+
         return response;
       })
       .catch(() => {
-        return caches.match(event.request).then((response) => {
-          if (response) {
-            return response;
-          }
-          return new Response("Offline - Content not cached", {
-            status: 503,
-            statusText: "Service Unavailable",
-            headers: new Headers({"Content-Type": "text/plain"})
-          });
+        return caches.match(request).then((cached) => {
+          return cached || caches.match("./index.html");
         });
       })
   );
