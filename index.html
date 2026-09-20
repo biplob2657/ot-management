@@ -21,6 +21,74 @@
 @media(max-width:700px){.worker-hour-row{grid-template-columns:1fr 1fr !important}.worker-hour-row>label{grid-column:1/-1}.worker-hour-row input{width:100%;box-sizing:border-box}}
 </style>
 
+<style>
+/* Mobile-first bottom navigation and sidebar behavior */
+.sidebar-overlay{display:none}
+.mobile-bottom-nav{display:none}
+
+@media(max-width:850px){
+  .sidebar-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(15,23,42,.45);
+    z-index:19;
+    backdrop-filter:blur(2px);
+  }
+  .sidebar.open + .sidebar-overlay{display:block}
+
+  .mobile-bottom-nav{
+    position:fixed;
+    left:10px;
+    right:10px;
+    bottom:10px;
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:4px;
+    background:rgba(255,255,255,.97);
+    border:1px solid #e2e8f0;
+    border-radius:18px;
+    padding:6px;
+    padding-bottom:calc(6px + env(safe-area-inset-bottom));
+    height:calc(64px + env(safe-area-inset-bottom));
+    z-index:30;
+    box-shadow:0 12px 35px rgba(15,23,42,.18);
+  }
+
+  .mobile-bottom-nav .bottom-nav-btn{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:3px;
+    min-width:0;
+    background:transparent;
+    color:#64748b;
+    border-radius:12px;
+    font-size:10px;
+    font-weight:750;
+    line-height:1;
+  }
+
+  .mobile-bottom-nav .bottom-nav-btn .nav-icon{
+    font-size:18px;
+    line-height:1.1;
+  }
+
+  .mobile-bottom-nav .bottom-nav-btn.active{
+    background:#eff6ff;
+    color:#2563eb;
+  }
+
+  .mobile-bottom-nav .bottom-nav-btn.more{color:#334155}
+
+  .content{padding-bottom:100px}
+  .footer-note{bottom:84px}
+}
+
+@media(min-width:851px){
+  .sidebar-overlay{display:none!important}
+}
+</style>
 <link rel="manifest" href="./manifest.json">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -46,7 +114,25 @@
 <div id="app" class="hidden">
 <aside class="sidebar" id="sidebar"><div class="logo">OT <span>Management</span></div>
 <button class="nav-btn active" data-page="dashboard">🏠 Dashboard</button><button class="nav-btn" data-page="request">📋 OT Request</button><button class="nav-btn" data-page="approval">✓ OT Approval</button><button class="nav-btn" data-page="manage">🛠 Manage OT</button><button class="nav-btn" data-page="calendar">📅 Calendar</button><button class="nav-btn admin-only" data-page="manpower">👥 Manpower</button><button class="nav-btn" data-page="reports">📊 Reports</button><button class="nav-btn" data-page="users">⚙ Users</button></aside>
-<main class="main"><header class="topbar"><div style="display:flex;align-items:center;gap:10px"><button class="mobile-menu" id="menuBtn">☰</button><strong id="topTitle">Dashboard</strong></div><div style="display:flex;align-items:center;gap:10px"><span id="userBadge" class="muted"></span><button id="logoutBtn" class="btn btn-light">Logout</button></div></header><div id="content" class="content"></div><div class="footer-note">by operations team</div></main></div>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<main class="main"><header class="topbar"><div style="display:flex;align-items:center;gap:10px"><button class="mobile-menu" id="menuBtn">☰</button><strong id="topTitle">Dashboard</strong></div><div style="display:flex;align-items:center;gap:10px"><span id="userBadge" class="muted"></span><button id="logoutBtn" class="btn btn-light">Logout</button></div></header><div id="content" class="content"></div><div class="footer-note">by operations team</div></main>
+<nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Mobile navigation">
+  <button class="bottom-nav-btn active" data-page="dashboard">
+    <span class="nav-icon">🏠</span><span>Home</span>
+  </button>
+  <button class="bottom-nav-btn" data-page="request">
+    <span class="nav-icon">📝</span><span>Request</span>
+  </button>
+  <button class="bottom-nav-btn" data-page="manage">
+    <span class="nav-icon">🛠</span><span>Manage</span>
+  </button>
+  <button class="bottom-nav-btn" data-page="reports">
+    <span class="nav-icon">📊</span><span>Reports</span>
+  </button>
+  <button class="bottom-nav-btn more" id="mobileMore">
+    <span class="nav-icon">☰</span><span>More</span>
+  </button>
+</nav></div>
 <div id="modal" class="modal hidden"><div class="modal-card" id="modalCard"></div></div><div id="toast" class="toast"></div>
 <script type="module">
 const cfg={apiKey:"AIzaSyDQGyX7yio9zK1BajOnKj59oNFAlcwlAZw",authDomain:"ot-management-b5979.firebaseapp.com",databaseURL:"https://ot-management-b5979-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"ot-management-b5979",storageBucket:"ot-management-b5979.firebasestorage.app",messagingSenderId:"683404816935",appId:"1:683404816935:web:8c7af9a8168875d95b5402"};
@@ -60,9 +146,42 @@ function loginErr(msg){$("loginError").textContent=msg;$("loginError").classList
 function friendly(e){const c=e?.code||"";const map={"auth/invalid-credential":"Incorrect email or password.","auth/invalid-login-credentials":"Incorrect email or password.","auth/user-not-found":"Incorrect email or password.","auth/wrong-password":"Incorrect email or password.","auth/too-many-requests":"Too many attempts. Please wait and try again.","auth/invalid-api-key":"Firebase API key is invalid.","permission-denied":"Firestore permission denied. Check Firestore Rules."};return map[c]||e?.message||"Something went wrong."}
 $("togglePassword").onclick=()=>{const i=$("loginPassword"),show=i.type==="password";i.type=show?"text":"password";$("togglePassword").textContent=show?"🙈":"👁"};
 $("loginForm").onsubmit=async e=>{e.preventDefault();$("loginError").classList.remove("show");const b=$("loginBtn");b.disabled=true;b.classList.add("loading");b.innerHTML='<span class="spinner"></span>Signing in…';try{await fb.signInWithEmailAndPassword(auth,$("loginEmail").value.trim(),$("loginPassword").value)}catch(err){loginErr(friendly(err))}finally{b.disabled=false;b.classList.remove("loading");b.textContent="Sign in"}};
-$("logoutBtn").onclick=()=>fb.signOut(auth);$("menuBtn").onclick=()=>$("sidebar").classList.toggle("open");document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{show(b.dataset.page);$("sidebar").classList.remove("open")});
+$("logoutBtn").onclick=()=>fb.signOut(auth);
+
+const sidebar=$("sidebar");
+const sidebarOverlay=$("sidebarOverlay");
+const closeSidebar=()=>{
+  sidebar.classList.remove("open");
+};
+
+$("menuBtn").onclick=()=>{
+  sidebar.classList.toggle("open");
+};
+
+if(sidebarOverlay){
+  sidebarOverlay.onclick=closeSidebar;
+}
+
+document.querySelectorAll(".nav-btn").forEach(b=>{
+  b.onclick=()=>{
+    show(b.dataset.page);
+    closeSidebar();
+  };
+});
+
+document.querySelectorAll(".bottom-nav-btn[data-page]").forEach(b=>{
+  b.onclick=()=>{
+    show(b.dataset.page);
+    closeSidebar();
+  };
+});
+
+$("mobileMore").onclick=()=>{
+  sidebar.classList.toggle("open");
+};
+
 function cleanup(){unsub.forEach(f=>{try{f()}catch{}});unsub=[]}
-function show(p){page=p;$("topTitle").textContent={dashboard:"Dashboard",request:"OT Request",approval:"OT Approval",manage:"Manage OT",calendar:"OT Calendar",manpower:"Manpower",reports:"OT Reports",users:"Users"}[p]||"Dashboard";document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===p));({dashboard,request,approval,manage,calendar,manpower:mp,reports,users}[p]||dashboard)()}
+function show(p){page=p;$("topTitle").textContent={dashboard:"Dashboard",request:"OT Request",approval:"OT Approval",manage:"Manage OT",calendar:"OT Calendar",manpower:"Manpower",reports:"OT Reports",users:"Users"}[p]||"Dashboard";document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===p));document.querySelectorAll(".bottom-nav-btn[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===p));({dashboard,request,approval,manage,calendar,manpower:mp,reports,users}[p]||dashboard)()}
 function table(rows,actions=true,printEach=false,manageView=false){if(!rows.length)return'<div class="empty">No records found.</div>';return`<div class="table-wrap"><table class="table"><thead><tr>${manageView?'<th>Seq</th><th>Submit Date</th><th>OT Date</th>':'<th>Date</th>'}<th>Department</th><th>Machine</th><th>Shift</th><th>Time</th><th>People</th><th>Status</th>${actions?'<th>Action</th>':''}</tr></thead><tbody>${rows.map(x=>`<tr>${manageView?`<td><b>OT-${String(x.sequence||fallbackSequence(x)).padStart(4,'0')}</b></td><td>${esc(fmt(x.submittedAt||x.createdAt)||'—')}</td><td>${esc(x.startDate||x.otDate||'—')}${x.endDate&&x.endDate!==x.startDate?`<br><small class="muted">to ${esc(x.endDate)}</small>`:''}</td>`:`<td>${esc(x.startDate||x.otDate)}</td>`}<td>${esc(x.department)}</td><td>${esc(x.machine||"—")}</td><td>${esc(x.otShift)}</td><td>${esc(x.startTime)}–${esc(x.endTime)}</td><td>${(x.employeeIds||[]).length}</td><td><span class="badge ${esc(x.status)}">${esc(x.status)}</span></td>${actions?`<td><div class="row-actions"><button class="btn btn-light" onclick="window.viewOT('${x.id}')">${profile?.role==='admin'?'Manage':'View'}</button>${printEach?`<button class="btn btn-light" onclick="window.printSingleOT('${x.id}')">🖨 Print / PDF</button>`:''}${manageView&&profile?.role==='admin'?`<button class="btn btn-danger" onclick="window.deleteOT('${x.id}')">Delete</button>`:''}</div></td>`:''}</tr>`).join('')}</tbody></table></div>`}
 function dashboard(){const defaultMonth=new Date().toISOString().slice(0,7);const render=month=>{let hrs=0,c=0;const dept={};ots.filter(x=>x.status==='approved').forEach(x=>{const sd=x.startDate||x.otDate,ed=x.endDate||x.otDate,es=x.actualEmployeeSnapshots||x.employeeSnapshots||[];const span=Math.max(1,daysBetween(sd,ed));for(let i=0;i<span;i++){const d=addDays(sd,i);if(d.slice(0,7)!==month)continue;es.forEach(e=>{const h=Number(e.otHours||otHours(x.startTime,x.endTime));hrs+=h;c+=cost(e.currentSalary,h);dept[x.department||'Unknown']=(dept[x.department||'Unknown']||0)+cost(e.currentSalary,h)})}});const max=Math.max(1,...Object.values(dept));const chart=Object.entries(dept).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="chart-row"><strong>${esc(k)}</strong><div class="chart-track"><div class="chart-bar" style="width:${(v/max*100).toFixed(1)}%"></div></div><div class="chart-amount">${money(v)}</div></div>`).join('')||'<div class="empty">No approved OT for this month.</div>';$("content").innerHTML=`<h1 class="page-title">Dashboard</h1><div class="muted">Live overtime overview</div><div class="card section"><div class="dashboard-filter"><div class="field"><label>Month</label><input id="dashMonth" type="month" value="${month}"></div><button class="btn btn-primary" id="dashApply">Apply</button></div></div><div class="grid4 section"><div class="stat"><div class="label">Active Manpower</div><div class="value">${manpower.length}</div></div><div class="stat"><div class="label">Pending Requests</div><div class="value">${ots.filter(x=>x.status==='pending').length}</div></div><div class="stat"><div class="label">Approved OT Hours</div><div class="value">${hrs.toFixed(1)}</div></div><div class="stat"><div class="label">Estimated OT Cost</div><div class="value">${money(c)}</div></div></div><div class="section card"><div class="section-head"><strong>Department-wise OT Cost</strong><span class="muted">${month}</span></div><div class="chart-list">${chart}</div></div><div class="section card"><div class="section-head"><strong>Recent OT</strong><button class="btn btn-light" onclick="window.show('approval')">View</button></div>${table(ots.slice(0,8),false)}</div>`;$("dashApply").onclick=()=>render($("dashMonth").value)};render(defaultMonth)}
 function daysBetween(a,b){if(!a||!b)return 1;return Math.floor((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/86400000)+1}function addDays(d,n){const x=new Date(d+"T00:00:00");x.setDate(x.getDate()+n);return x.toISOString().slice(0,10)}
