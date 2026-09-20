@@ -1,4 +1,4 @@
-const CACHE_NAME = "ot-management-v1";
+const CACHE_NAME = "ot-management-shell-v3";
 
 const APP_SHELL = [
   "./",
@@ -9,7 +9,9 @@ const APP_SHELL = [
   "./favicon.png"
 ];
 
-// Install
+// ================================
+// INSTALL
+// ================================
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -18,7 +20,10 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// Activate
+
+// ================================
+// ACTIVATE
+// ================================
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -31,17 +36,22 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Fetch
+
+// ================================
+// FETCH
+// ================================
 self.addEventListener("fetch", (event) => {
+
   const request = event.request;
-  const url = new URL(request.url);
 
   // Only handle GET requests
   if (request.method !== "GET") {
     return;
   }
 
-  // Never cache Firebase / Google API requests
+  const url = new URL(request.url);
+
+  // Do NOT cache Firebase / Google API requests
   if (
     url.hostname.includes("googleapis.com") ||
     url.hostname.includes("gstatic.com") ||
@@ -51,28 +61,44 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Only cache requests from this GitHub Pages site
+  // Only handle requests from this website
   if (url.origin !== self.location.origin) {
     return;
   }
 
   event.respondWith(
+
     fetch(request)
+
       .then((response) => {
-        // Save a copy in cache
+
+        // Save a copy for offline use
         const responseClone = response.clone();
 
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, responseClone);
-        });
+        caches.open(CACHE_NAME)
+          .then((cache) => {
+            cache.put(request, responseClone);
+          });
 
         return response;
       })
+
       .catch(() => {
-        // If offline, use cached version
-        return caches.match(request).then((cachedResponse) => {
-          return cachedResponse || caches.match("./index.html");
-        });
+
+        // If internet is unavailable,
+        // load the cached version
+        return caches.match(request)
+          .then((cachedResponse) => {
+
+            return (
+              cachedResponse ||
+              caches.match("./index.html")
+            );
+
+          });
+
       })
+
   );
+
 });
