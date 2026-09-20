@@ -47,5 +47,8 @@
         }
       ]
     }
+  ],
+  "display_override": [
+    "standalone"
   ]
 }
