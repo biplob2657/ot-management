@@ -27,6 +27,8 @@
 <meta name="apple-mobile-web-app-title" content="OT Management">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
+<link rel="icon" type="image/png" href="./favicon.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
 </head>
 <body>
 <div id="login"><div class="login-card" id="loginCard">
@@ -122,34 +124,6 @@ window.printSingleOT=id=>{
   <div class="signatures"><div class="sig"><div class="line"></div><b>Shift In-Charge</b><br>Name: __________________<br>Date: __________________</div><div class="sig"><div class="line"></div><b>Authorized By</b><br>Name: __________________<br>Date: __________________</div></div>
   <div class="footer">by operations team</div>
   
-<script>
-(function(){
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    window.addEventListener('load', function(){
-      navigator.serviceWorker.register('./sw.js').catch(function(err){
-        console.warn('Service worker registration failed:', err);
-      });
-    });
-  }
-
-  window.__pwaRequestedPage = new URLSearchParams(location.search).get('open') || '';
-
-  // The existing app opens Dashboard after authentication.
-  // Override only that final navigation when a PWA shortcut was used.
-  const originalShow = window.show;
-  window.show = function(page){
-    return originalShow ? originalShow(page) : undefined;
-  };
-
-  window.__openPwaShortcut = function(){
-    const target = window.__pwaRequestedPage;
-    if (target && ['request','approval'].includes(target) && typeof window.show === 'function') {
-      window.show(target);
-    }
-  };
-})();
-</script>
-
 </body></html>`);
   w.document.close();
   w.focus();
@@ -235,5 +209,17 @@ window.cleanupData=async type=>{
 function listen(){const mq=fb.query(fb.collection(db,'manpower'),fb.where('active','==',true));unsub.push(fb.onSnapshot(mq,s=>{manpower=s.docs.map(d=>({id:d.id,...d.data()}));if(page==='manpower'||page==='request'||page==='dashboard')show(page)},e=>{$('firebaseError').textContent='Firestore error: '+friendly(e);$('firebaseError').classList.add('show')}));let q=fb.query(fb.collection(db,'otRequests'));if(profile.role==='shift_incharge')q=fb.query(fb.collection(db,'otRequests'),fb.where('requestedByUid','==',me.uid));unsub.push(fb.onSnapshot(q,s=>{ots=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const sa=Number(a.sequence)||0,sb=Number(b.sequence)||0;if(sa!==sb)return sb-sa;const da=a.submittedAt?.seconds||a.createdAt?.seconds||0,db=b.submittedAt?.seconds||b.createdAt?.seconds||0;return db-da});if(['dashboard','approval','manage','calendar','reports'].includes(page))show(page)},e=>toast('OT data error: '+friendly(e))))}
 try{const [{initializeApp},{getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut},{getFirestore,collection,doc,getDoc,getDocs,addDoc,setDoc,updateDoc,deleteDoc,query,where,onSnapshot,serverTimestamp,writeBatch}]=await Promise.all([import('https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js'),import('https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js'),import('https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js')]);fb={initializeApp,getAuth,signInWithEmailAndPassword,signOut,getFirestore,collection,doc,getDoc,getDocs,addDoc,setDoc,updateDoc,deleteDoc,query,where,onSnapshot,serverTimestamp,writeBatch};const app=initializeApp(cfg);auth=getAuth(app);db=getFirestore(app);onAuthStateChanged(auth,async u=>{cleanup();if(!u){$("login").classList.remove('hidden');$("app").classList.add('hidden');return}try{me=u;const s=await getDoc(doc(db,'users',u.uid));if(!s.exists()){await signOut(auth);loginErr('Your account has no role profile in Firestore.');return}profile={id:s.id,...s.data()};$("login").classList.add('hidden');$("app").classList.remove('hidden');$("userBadge").textContent=`${profile.name||u.email} • ${profile.role}`;document.querySelectorAll('.admin-only').forEach(x=>x.classList.toggle('hidden',profile.role!=='admin'));listen();show(window.__pwaRequestedPage&&['request','approval'].includes(window.__pwaRequestedPage)?window.__pwaRequestedPage:'dashboard')}catch(e){loginErr('Login succeeded, but Firestore role lookup failed: '+friendly(e))}})}catch(e){$('firebaseError').textContent='Firebase could not load. If you opened this HTML by double-clicking, please run it from localhost/GitHub Pages. Details: '+friendly(e);$('firebaseError').classList.add('show')}
 window.show=show;
+</script>
+<script>
+(function(){
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('./sw.js').catch(function(err){
+        console.warn('Service worker registration failed:', err);
+      });
+    });
+  }
+  window.__pwaRequestedPage = new URLSearchParams(location.search).get('open') || '';
+})();
 </script>
 </body></html>
