@@ -1,4 +1,4 @@
-const CACHE_NAME = "ot-management-shell-v4";
+const CACHE_NAME = "ot-management-shell-v5";
 
 const APP_SHELL = [
   "./",
@@ -44,14 +44,14 @@ self.addEventListener("fetch", (event) => {
 
   const request = event.request;
 
-  // Only GET requests
+  // Only handle GET requests
   if (request.method !== "GET") {
     return;
   }
 
   const url = new URL(request.url);
 
-  // Never cache Firebase / Google API requests
+  // Do NOT cache Firebase / Google API requests
   if (
     url.hostname.includes("googleapis.com") ||
     url.hostname.includes("gstatic.com") ||
@@ -71,7 +71,7 @@ self.addEventListener("fetch", (event) => {
     fetch(request)
       .then((response) => {
 
-        // Save latest file in cache
+        // Save latest version in cache
         const responseClone = response.clone();
 
         caches.open(CACHE_NAME)
