@@ -1,4 +1,4 @@
-const CACHE_NAME = "ot-management-shell-v3";
+const CACHE_NAME = "ot-management-shell-v4";
 
 const APP_SHELL = [
   "./",
@@ -44,14 +44,14 @@ self.addEventListener("fetch", (event) => {
 
   const request = event.request;
 
-  // Only handle GET requests
+  // Only GET requests
   if (request.method !== "GET") {
     return;
   }
 
   const url = new URL(request.url);
 
-  // Do NOT cache Firebase / Google API requests
+  // Never cache Firebase / Google API requests
   if (
     url.hostname.includes("googleapis.com") ||
     url.hostname.includes("gstatic.com") ||
@@ -61,7 +61,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Only handle requests from this website
+  // Only handle same-origin requests
   if (url.origin !== self.location.origin) {
     return;
   }
@@ -69,10 +69,9 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
 
     fetch(request)
-
       .then((response) => {
 
-        // Save a copy for offline use
+        // Save latest file in cache
         const responseClone = response.clone();
 
         caches.open(CACHE_NAME)
@@ -85,8 +84,7 @@ self.addEventListener("fetch", (event) => {
 
       .catch(() => {
 
-        // If internet is unavailable,
-        // load the cached version
+        // Offline fallback
         return caches.match(request)
           .then((cachedResponse) => {
 
