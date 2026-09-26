@@ -152,13 +152,96 @@ window.deleteOT=async id=>{
   const ok=await wait(); btns.forEach(b=>{b.disabled=false;b.classList.remove('dangerPulse')}); if(!ok)return;
   try{await fb.deleteDoc(fb.doc(db,'otRequests',id));toast(`${label} deleted`)}catch(e){toast(friendly(e))}
 };
-window.editOT=id=>{if(!["admin","hod"].includes(profile.role))return;const x=ots.find(a=>a.id===id);if(!x)return;const current=x.actualEmployeeSnapshots||x.employeeSnapshots||[];const selected=new Map(current.map(e=>[String(e.employeeId||e.id),e]));const machines=[...new Set(manpower.map(m=>m.machine).filter(Boolean))].sort();
+
+window.editOT=id=>{if(!["admin","hod"].includes(profile.role))return;const x=ots.find(a=>a.id===id);if(!x)return;const current=x.actualEmployeeSnapshots||x.employeeSnapshots||[];const machines=[...new Set(manpower.map(m=>m.machine).filter(Boolean))].sort();
  $("modalCard").innerHTML=`<div class="section-head"><h2>Edit OT</h2><button class="btn btn-light" onclick="window.closeModal()">Close</button></div><form id="editOT"><div class="form-grid"><div class="field"><label>Status</label><select id="edStatus"><option value="pending">Pending</option><option value="approved">Approved</option><option value="cancelled">Cancelled</option><option value="rejected">Rejected</option></select></div><div class="field"><label>Department</label><input id="edDept" value="${esc(x.department)}"></div><div class="field"><label>Machine</label><select id="edMachine">${machines.map(m=>`<option ${m===x.machine?'selected':''}>${esc(m)}</option>`).join('')}</select></div><div class="field"><label>From Date</label><input id="edStart" type="date" value="${esc(x.startDate||x.otDate)}"></div><div class="field"><label>To Date</label><input id="edEnd" type="date" value="${esc(x.endDate||x.otDate)}"></div><div class="field full"><label>Purpose</label><textarea id="edPurpose">${esc(x.purpose||'')}</textarea></div><div class="field full"><label>Search manpower</label><input id="edWorkerSearch" class="edit-worker-search" placeholder="Search employee ID or name"><div id="editWorkers" class="card" style="padding:8px;max-height:360px;overflow:auto"></div></div></div><div class="actions"><button class="btn btn-primary">Save Changes</button></div></form>`;
  $('edStatus').value=x.status||'pending';
-const renderWorkers=()=>{const q=$('edWorkerSearch').value.toLowerCase();const arr=manpower.filter(m=>`${m.employeeId||m.id} ${m.name} ${m.department} ${m.machine}`.toLowerCase().includes(q));$('editWorkers').innerHTML=`<div style="display:grid;grid-template-columns:minmax(170px,1fr) 105px 105px 80px;gap:8px;padding:6px;font-weight:700;border-bottom:1px solid var(--line)"><div>Manpower</div><div>Start</div><div>End</div><div>OT Hrs</div></div>`+arr.map(m=>{const key=String(m.employeeId||m.id),e=selected.get(key),checked=!!e;const st=e?.otStartTime||x.startTime||'',et=e?.otEndTime||x.endTime||'',h=Number(e?.otHours ?? (st&&et?otHours(st,et):0));return `<div class="worker-hour-row" data-edit-row="${esc(m.id)}" style="display:grid;grid-template-columns:minmax(170px,1fr) 105px 105px 80px;gap:8px;align-items:center;margin-bottom:8px;padding:7px;border-bottom:1px solid var(--line)"><label><input type="checkbox" class="editEmp" value="${esc(m.id)}" ${checked?'checked':''}> <b>${esc(m.name)}</b><br><small class="muted">${esc(m.employeeId||m.id)} • ${esc(m.designation||'')} • ${esc(m.department||'')}</small></label><div><input class="empStart" data-id="${esc(m.id)}" type="time" value="${esc(st)}"></div><div><input class="empEnd" data-id="${esc(m.id)}" type="time" value="${esc(et)}"></div><div><input class="empHours" data-id="${esc(m.id)}" type="text" value="${h.toFixed(2)} H" readonly></div></div>`}).join('')||'<div class="empty">No manpower found.</div>';};
- $('edWorkerSearch').oninput=renderWorkers;renderWorkers();
- $('editWorkers').addEventListener('input',e=>{if(!e.target.matches('.empStart,.empEnd'))return;const id=e.target.dataset.id;const st=document.querySelector(`.empStart[data-id="${id}"]`)?.value,et=document.querySelector(`.empEnd[data-id="${id}"]`)?.value,hr=document.querySelector(`.empHours[data-id="${id}"]`);if(hr)hr.value=(st&&et?otHours(st,et):0).toFixed(2)+' H'});
- $('editOT').onsubmit=async e=>{e.preventDefault();const snaps=[];document.querySelectorAll('.editEmp:checked').forEach(cb=>{const id=cb.value,m=manpower.find(mm=>String(mm.id)===id);if(!m)return;const key=String(m.employeeId||m.id);const st=document.querySelector(`.empStart[data-id="${id}"]`)?.value||'',et=document.querySelector(`.empEnd[data-id="${id}"]`)?.value||'',hr=(st&&et)?otHours(st,et):0;snaps.push({...(current.find(c=>String(c.employeeId||c.id)===key)||{}),employeeId:m.employeeId||m.id,name:m.name,designation:m.designation||'',machine:m.machine||'',currentSalary:Number(m.currentSalary||0),otStartTime:st,otEndTime:et,otHours:Number(hr)});});if(!snaps.length){toast('Select at least one employee');return}if(snaps.some(e=>!e.otStartTime||!e.otEndTime||Number(e.otHours)<=0)){toast('Please set valid Start Time and End Time for every selected employee');return}try{await fb.updateDoc(fb.doc(db,"otRequests",id),{status:$('edStatus').value,department:$('edDept').value,machine:$('edMachine').value,startDate:$('edStart').value,endDate:$('edEnd').value,otDate:$('edStart').value,purpose:$('edPurpose').value,employeeIds:snaps.map(e=>e.employeeId),actualEmployeeSnapshots:snaps,updatedByUid:me.uid,updatedAt:fb.serverTimestamp()});window.closeModal();toast('OT updated')}catch(err){toast(friendly(err))}}};
+
+const renderWorkers=()=>{
+  const q=$('edWorkerSearch').value.toLowerCase();
+  const arr=manpower.filter(m=>`${m.employeeId||m.id} ${m.name} ${m.department} ${m.machine}`.toLowerCase().includes(q));
+  const html=`<div style="display:grid;grid-template-columns:minmax(170px,1fr) 105px 105px 80px;gap:8px;padding:6px;font-weight:700;border-bottom:1px solid var(--line)"><div>Manpower</div><div>Start</div><div>End</div><div>OT Hrs</div></div>`+arr.map(m=>{
+    const key=String(m.employeeId||m.id);
+    const e=current.find(c=>String(c.employeeId||c.id)===key);
+    const checked=!!e;
+    const st=e?.otStartTime||x.startTime||'';
+    const et=e?.otEndTime||x.endTime||'';
+    const h=Number(e?.otHours ?? (st&&et?otHours(st,et):0));
+    return `<div class="worker-hour-row" data-edit-row="${esc(m.id)}" style="display:grid;grid-template-columns:minmax(170px,1fr) 105px 105px 80px;gap:8px;align-items:center;margin-bottom:8px;padding:7px;border-bottom:1px solid var(--line)"><label><input type="checkbox" class="editEmp" value="${esc(m.id)}" ${checked?'checked':''}> <b>${esc(m.name)}</b><br><small class="muted">${esc(m.employeeId||m.id)} • ${esc(m.designation||'')} • ${esc(m.department||'')}</small></label><div><input class="empStart" data-id="${esc(m.id)}" type="time" value="${esc(st)}"></div><div><input class="empEnd" data-id="${esc(m.id)}" type="time" value="${esc(et)}"></div><div><input class="empHours" data-id="${esc(m.id)}" type="text" value="${h.toFixed(2)} H" readonly></div></div>`;
+  }).join('')||'<div class="empty">No manpower found.</div>';
+  
+  $('editWorkers').innerHTML=html;
+
+  document.querySelectorAll('.editEmp').forEach(cb=>{
+    const id=cb.value;
+    const m=manpower.find(mm=>String(mm.id)===id);
+    const key=String(m?.employeeId||m?.id||id);
+    cb.checked = current.some(c=>String(c.employeeId||c.id)===key);
+  });
+};
+
+ $('edWorkerSearch').oninput=renderWorkers;
+renderWorkers();
+
+ $('editWorkers').addEventListener('change',e=>{
+  if(!e.target.matches('.editEmp'))return;
+  const id=e.target.value;
+  const m=manpower.find(mm=>String(mm.id)===id);
+  const key=String(m?.employeeId||m?.id||id);
+  const idx = current.findIndex(c=>String(c.employeeId||c.id)===key);
+  
+  if(e.target.checked){
+    const st=document.querySelector(`.empStart[data-id="${id}"]`)?.value||'';
+    const et=document.querySelector(`.empEnd[data-id="${id}"]`)?.value||'';
+    const hr=(st&&et)?otHours(st,et):0;
+    current.push({employeeId:m?.employeeId||id,name:m?.name||'',designation:m?.designation||'',machine:m?.machine||'',currentSalary:Number(m?.currentSalary||0),otStartTime:st,otEndTime:et,otHours:Number(hr)});
+  } else {
+    if(idx>-1) current.splice(idx, 1);
+  }
+});
+
+ $('editWorkers').addEventListener('input',e=>{if(!e.target.matches('.empStart,.empEnd'))return;
+  const id=e.target.dataset.id;
+  const st=document.querySelector(`.empStart[data-id="${id}"]`)?.value;
+  const et=document.querySelector(`.empEnd[data-id="${id}"]`)?.value;
+  const hr=document.querySelector(`.empHours[data-id="${id}"]`);
+  if(hr)hr.value=(st&&et?otHours(st,et):0).toFixed(2)+' H';
+  
+  const m=manpower.find(mm=>String(mm.id)===id);
+  const key=String(m?.employeeId||m?.id||id);
+  const idx = current.findIndex(c=>String(c.employeeId||c.id)===key);
+  if(idx>-1){
+    current[idx].otStartTime=st;
+    current[idx].otEndTime=et;
+    current[idx].otHours=(st&&et)?otHours(st,et):0;
+  }
+});
+
+ $('editOT').onsubmit=async e=>{
+  e.preventDefault();
+  const snaps=current.filter(c=>c && c.employeeId);
+  
+  if(!snaps.length){toast('Select at least one employee');return}
+  if(snaps.some(e=>!e.otStartTime||!e.otEndTime||Number(e.otHours)<=0)){toast('Please set valid Start Time and End Time for every selected employee');return}
+  
+  try{
+    await fb.updateDoc(fb.doc(db,"otRequests",id),{
+      status:$('edStatus').value,
+      department:$('edDept').value,
+      machine:$('edMachine').value,
+      startDate:$('edStart').value,
+      endDate:$('edEnd').value,
+      otDate:$('edStart').value,
+      purpose:$('edPurpose').value,
+      employeeIds:snaps.map(e=>e.employeeId),
+      actualEmployeeSnapshots:snaps,
+      updatedByUid:me.uid,
+      updatedAt:fb.serverTimestamp()
+    });
+    window.closeModal();
+    toast('OT updated');
+  }catch(err){toast(friendly(err))}
+}};
 
 function calendar(){const now=new Date(),y=now.getFullYear(),m=now.getMonth(),first=new Date(y,m,1),days=new Date(y,m+1,0).getDate(),start=first.getDay();let cells="";for(let i=0;i<start;i++)cells+='<div></div>';for(let d=1;d<=days;d++){const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`,ev=ots.filter(x=>x.status==="approved"&&ds>=(x.startDate||x.otDate)&&ds<=(x.endDate||x.otDate)),machines=[...new Set(ev.map(x=>x.machine).filter(Boolean))];cells+=`<div class="day" onclick="window.day('${ds}')"><div class="daynum">${d}</div>${machines.map(x=>`<div class="machine">${esc(x)}</div>`).join("")}</div>`}$('content').innerHTML=`<h1 class="page-title">OT Calendar</h1><div class="muted">${now.toLocaleString('en',{month:'long',year:'numeric'})} • Click a date to view running OT</div><div class="card section"><div class="calendar">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="cal-head">${x}</div>`).join('')}${cells}</div></div>`}
 window.day=ds=>{const rows=ots.filter(x=>x.status==="approved"&&ds>=(x.startDate||x.otDate)&&ds<=(x.endDate||x.otDate));$('modalCard').innerHTML=`<div class="section-head"><h2>OT Running — ${esc(ds)}</h2><button class="btn btn-light" onclick="window.closeModal()">Close</button></div>${table(rows,true)}`;$('modal').classList.remove('hidden')};
