@@ -80,11 +80,11 @@ function request(){
     const arr=manpower.filter(x=>(!d||x.department===d)&&`${x.employeeId||x.id} ${x.name} ${x.department||""} ${x.machine||""}`.toLowerCase().includes(q));
     $("workers").innerHTML=`<div style="display:grid;grid-template-columns:minmax(220px,1.6fr) 120px 120px 95px;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-weight:700;position:sticky;top:0;background:var(--card);z-index:2"><div>Manpower</div><div>Start Time</div><div>End Time</div><div>OT Hours</div></div>`+arr.map(x=>{
       const key=String(x.id),e=requestSelected.get(key)||{};
-      const st=e.otStartTime||"",et=e.otEndTime||"",h=(st&&et)?otHours(st,et):0;
-      return `<div class="worker-hour-row" data-request-row="${esc(x.id)}" style="display:grid;grid-template-columns:minmax(220px,1.6fr) 120px 120px 95px;gap:8px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--line)"><label style="cursor:pointer"><input type="checkbox" class="requestEmp" value="${esc(x.id)}" ${e.selected?'checked':''}> <b>${esc(x.name)}</b><br><small class="muted">${esc(x.employeeId||x.id)} • ${esc(x.designation||"")} • ${esc(x.machine||"")}</small></label><input class="reqStart" data-id="${esc(x.id)}" type="time" value="${esc(st)}" ${e.selected?'':'disabled'}><input class="reqEnd" data-id="${esc(x.id)}" type="time" value="${esc(et)}" ${e.selected?'':'disabled'}><input class="reqHours" data-id="${esc(x.id)}" type="text" value="${h.toFixed(2)} H" readonly></div>`;
+      const st=e.otStartTime||"",et=e.otEndTime||"",h=e.otHours||0;
+      return `<div class="worker-hour-row" data-request-row="${esc(x.id)}" style="display:grid;grid-template-columns:minmax(220px,1.6fr) 120px 120px 95px;gap:8px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--line)"><label style="cursor:pointer"><input type="checkbox" class="requestEmp" value="${esc(x.id)}" ${e.selected?'checked':''}> <b>${esc(x.name)}</b><br><small class="muted">${esc(x.employeeId||x.id)} • ${esc(x.designation||"")} • ${esc(x.machine||"")}</small></label><input class="reqStart" data-id="${esc(x.id)}" type="time" value="${esc(st)}" ${e.selected?'':'disabled'}><input class="reqEnd" data-id="${esc(x.id)}" type="time" value="${esc(et)}" ${e.selected?'':'disabled'}><input class="reqHours" data-id="${esc(x.id)}" type="number" min="0" step="0.01" value="${h}" ${e.selected?'':'disabled'}></div>`;
     }).join("")||'<div class="empty" style="padding:15px">No manpower found.</div>';
     const selected=[...requestSelected.values()].filter(v=>v.selected);
-    const dayHours=selected.reduce((n,v)=>n+Number((v.otStartTime&&v.otEndTime)?otHours(v.otStartTime,v.otEndTime):0),0);
+    const dayHours=selected.reduce((n,v)=>n+Number(v.otHours||0),0);
     const sd=$("startDate")?.value,ed=$("dateType")?.value==="single"?sd:$("endDate")?.value;
     const days=(sd&&ed&&ed>=sd)?Math.max(1,daysBetween(sd,ed)):1;
     $("otSummary").innerHTML=`<div style="display:flex;gap:22px;flex-wrap:wrap"><div><b>Selected Employees:</b> ${selected.length}</div><div><b>OT Hours/Day:</b> ${dayHours.toFixed(2)} H</div><div><b>Total OT Hours:</b> ${(dayHours*days).toFixed(2)} H</div><div class="muted">${days} day${days===1?'':'s'}</div></div>`;
@@ -99,12 +99,21 @@ function request(){
     render();
   });
   $("workers").addEventListener("input",e=>{
-    if(!e.target.matches('.reqStart,.reqEnd'))return;
+    if(!e.target.matches('.reqStart,.reqEnd,.reqHours'))return;
     const id=String(e.target.dataset.id), row=e.target.closest('[data-request-row]');
     const st=row.querySelector('.reqStart').value,et=row.querySelector('.reqEnd').value;
-    const old=requestSelected.get(id)||{};
-    requestSelected.set(id,{...old,selected:true,otStartTime:st,otEndTime:et});
-    const h=row.querySelector('.reqHours'); if(h)h.value=(st&&et?otHours(st,et):0).toFixed(2)+' H';
+    
+    // If start/end time changed, auto-calculate hours
+    if(e.target.matches('.reqStart,.reqEnd')) {
+      const autoH = (st && et) ? otHours(st, et) : 0;
+      row.querySelector('.reqHours').value = autoH;
+      requestSelected.set(id,{...requestSelected.get(id),selected:true,otStartTime:st,otEndTime:et,otHours:autoH});
+    } 
+    // If hours changed manually, just save the manual value
+    else if(e.target.matches('.reqHours')) {
+      const manualH = parseFloat(row.querySelector('.reqHours').value) || 0;
+      requestSelected.set(id,{...requestSelected.get(id),selected:true,otStartTime:st,otEndTime:et,otHours:manualH});
+    }
   });
   $("dateType").onchange=()=>{$("endWrap").classList.toggle("hidden",$("dateType").value==="single");render()};
   $("startDate").onchange=render;
@@ -116,9 +125,9 @@ function request(){
     if(ed<sd){toast("To Date cannot be before From Date");return}
     const selected=[...requestSelected.entries()].filter(([id,v])=>v.selected&&manpower.some(x=>String(x.id)===id));
     if(!selected.length){toast("Select at least one employee");return}
-    const emp=selected.map(([id,v])=>{const x=manpower.find(m=>String(m.id)===id);return {...x,otStartTime:v.otStartTime||"",otEndTime:v.otEndTime||"",otHours:(v.otStartTime&&v.otEndTime)?otHours(v.otStartTime,v.otEndTime):0}});
+    const emp=selected.map(([id,v])=>{const x=manpower.find(m=>String(m.id)===id);return {...x,otStartTime:v.otStartTime||"",otEndTime:v.otEndTime||"",otHours:Number(v.otHours||0)}});
     if(emp.some(x=>!x.otStartTime||!x.otEndTime)){toast("Please set Start Time and End Time for every selected employee");return}
-    if(emp.some(x=>Number(x.otHours)<=0)){toast("End Time must be later than Start Time");return}
+    if(emp.some(x=>Number(x.otHours)<0)){toast("OT Hours cannot be negative");return}
     const data={department:$("dept").value,machine:$("machine").value.trim(),startDate:sd,endDate:ed,otDate:sd,purpose:$("purpose").value.trim(),requestedByUid:me.uid,requestedByName:profile.name||me.email,status:"pending",sequence:nextOTSequence(),submittedAt:fb.serverTimestamp(),employeeIds:emp.map(x=>x.id),employeeSnapshots:emp.map(x=>({employeeId:x.employeeId||x.id,name:x.name,designation:x.designation||"",machine:x.machine||"",currentSalary:Number(x.currentSalary||0),otStartTime:x.otStartTime,otEndTime:x.otEndTime,otHours:Number(x.otHours)})),createdAt:fb.serverTimestamp(),updatedAt:fb.serverTimestamp()};
     try{await fb.addDoc(fb.collection(db,"otRequests"),data);requestSelected.clear();toast("OT request submitted");show("dashboard")}catch(err){toast(friendly(err))}
   };
@@ -166,8 +175,8 @@ const renderWorkers=()=>{
     const checked=!!e;
     const st=e?.otStartTime||x.startTime||'';
     const et=e?.otEndTime||x.endTime||'';
-    const h=Number(e?.otHours ?? (st&&et?otHours(st,et):0));
-    return `<div class="worker-hour-row" data-edit-row="${esc(m.id)}" style="display:grid;grid-template-columns:minmax(170px,1fr) 105px 105px 80px;gap:8px;align-items:center;margin-bottom:8px;padding:7px;border-bottom:1px solid var(--line)"><label><input type="checkbox" class="editEmp" value="${esc(m.id)}" ${checked?'checked':''}> <b>${esc(m.name)}</b><br><small class="muted">${esc(m.employeeId||m.id)} • ${esc(m.designation||'')} • ${esc(m.department||'')}</small></label><div><input class="empStart" data-id="${esc(m.id)}" type="time" value="${esc(st)}"></div><div><input class="empEnd" data-id="${esc(m.id)}" type="time" value="${esc(et)}"></div><div><input class="empHours" data-id="${esc(m.id)}" type="text" value="${h.toFixed(2)} H" readonly></div></div>`;
+    const h=Number(e?.otHours ?? 0);
+    return `<div class="worker-hour-row" data-edit-row="${esc(m.id)}" style="display:grid;grid-template-columns:minmax(170px,1fr) 105px 105px 80px;gap:8px;align-items:center;margin-bottom:8px;padding:7px;border-bottom:1px solid var(--line)"><label><input type="checkbox" class="editEmp" value="${esc(m.id)}" ${checked?'checked':''}> <b>${esc(m.name)}</b><br><small class="muted">${esc(m.employeeId||m.id)} • ${esc(m.designation||'')} • ${esc(m.department||'')}</small></label><div><input class="empStart" data-id="${esc(m.id)}" type="time" value="${esc(st)}"></div><div><input class="empEnd" data-id="${esc(m.id)}" type="time" value="${esc(et)}"></div><div><input class="empHours" data-id="${esc(m.id)}" type="number" min="0" step="0.01" value="${h}"></div></div>`;
   }).join('')||'<div class="empty">No manpower found.</div>';
   
   $('editWorkers').innerHTML=html;
@@ -193,27 +202,35 @@ renderWorkers();
   if(e.target.checked){
     const st=document.querySelector(`.empStart[data-id="${id}"]`)?.value||'';
     const et=document.querySelector(`.empEnd[data-id="${id}"]`)?.value||'';
-    const hr=(st&&et)?otHours(st,et):0;
+    const hr=parseFloat(document.querySelector(`.empHours[data-id="${id}"]`)?.value)||0;
     current.push({employeeId:m?.employeeId||id,name:m?.name||'',designation:m?.designation||'',machine:m?.machine||'',currentSalary:Number(m?.currentSalary||0),otStartTime:st,otEndTime:et,otHours:Number(hr)});
   } else {
     if(idx>-1) current.splice(idx, 1);
   }
 });
 
- $('editWorkers').addEventListener('input',e=>{if(!e.target.matches('.empStart,.empEnd'))return;
+ $('editWorkers').addEventListener('input',e=>{if(!e.target.matches('.empStart,.empEnd,.empHours'))return;
   const id=e.target.dataset.id;
   const st=document.querySelector(`.empStart[data-id="${id}"]`)?.value;
   const et=document.querySelector(`.empEnd[data-id="${id}"]`)?.value;
-  const hr=document.querySelector(`.empHours[data-id="${id}"]`);
-  if(hr)hr.value=(st&&et?otHours(st,et):0).toFixed(2)+' H';
+  const hrInput = document.querySelector(`.empHours[data-id="${id}"]`);
   
   const m=manpower.find(mm=>String(mm.id)===id);
   const key=String(m?.employeeId||m?.id||id);
   const idx = current.findIndex(c=>String(c.employeeId||c.id)===key);
-  if(idx>-1){
+  
+  // If start or end time changes, auto calculate OT Hours and put in the box
+  if(e.target.matches('.empStart,.empEnd') && idx>-1){
+    const autoH = (st && et) ? otHours(st, et) : 0;
+    hrInput.value = autoH;
     current[idx].otStartTime=st;
     current[idx].otEndTime=et;
-    current[idx].otHours=(st&&et)?otHours(st,et):0;
+    current[idx].otHours=Number(autoH);
+  } 
+  // If OT Hours box is manually changed, save the manual value
+  else if(e.target.matches('.empHours') && idx>-1){
+    const manualH = parseFloat(hrInput.value) || 0;
+    current[idx].otHours=Number(manualH);
   }
 });
 
@@ -222,7 +239,8 @@ renderWorkers();
   const snaps=current.filter(c=>c && c.employeeId);
   
   if(!snaps.length){toast('Select at least one employee');return}
-  if(snaps.some(e=>!e.otStartTime||!e.otEndTime||Number(e.otHours)<=0)){toast('Please set valid Start Time and End Time for every selected employee');return}
+  if(snaps.some(e=>!e.otStartTime||!e.otEndTime)){toast('Please set valid Start Time and End Time for every selected employee');return}
+  if(snaps.some(e=>Number(e.otHours)<0)){toast('OT Hours cannot be negative');return}
   
   try{
     await fb.updateDoc(fb.doc(db,"otRequests",id),{
