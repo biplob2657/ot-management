@@ -28,7 +28,7 @@
 @media(max-width:700px){.worker-hour-row{grid-template-columns:1fr 1fr !important}.worker-hour-row>label{grid-column:1/-1}.worker-hour-row input,.worker-hour-row select{width:100%;box-sizing:border-box}}
 .shift-select{padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12px;min-width:70px}
 .apply-shift-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#f8fafc;border:1px dashed var(--blue);border-radius:12px;padding:10px 14px;margin-bottom:10px}
-.apply-shift-bar label{font-size:13px;font-weight:700;color:var(--text)}
+.apply-shift-bar label{font-size:13px;font-weight:700;color:var(--text)}.report-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}.report-tab{padding:10px 18px;border:1px solid var(--line);background:#fff;border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;color:var(--muted)}.report-tab.active{background:var(--blue);color:#fff;border-color:var(--blue)}.emp-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}.emp-info-item{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px}.emp-info-item .label{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}.emp-info-item .value{font-size:15px;font-weight:800;margin-top:4px;color:var(--text)}.emp-search-wrap{position:relative}.emp-search-wrap input{width:100%}.emp-search-results{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:0 0 10px 10px;max-height:240px;overflow:auto;z-index:5;box-shadow:0 10px 30px #0001;display:none}.emp-search-results.show{display:block}.emp-search-item{padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)}.emp-search-item:last-child{border-bottom:0}.emp-search-item:hover{background:#eef2ff}.emp-search-item .id{font-weight:700;color:var(--blue)}.emp-search-item .name{color:var(--text);margin-left:8px}
 </style>
 </head>
 <body>
@@ -370,9 +370,256 @@ window.mpPg=d=>{mpPage=Math.max(1,mpPage+d);mp()};
 function employee(id){const x=id?manpower.find(a=>a.id===id):null;$('modalCard').innerHTML=`<div class="section-head"><h2>${x?'Edit':'Add'} Employee</h2><button class="btn btn-light" onclick="window.closeModal()">Close</button></div><form id="ef"><div class="form-grid">${[['employeeId','Employee ID'],['name','Name'],['department','Department'],['machine','Machine'],['shiftType','Shift Type'],['mobile','Mobile'],['joiningDate','Joining Date'],['designation','Designation'],['currentSalary','Current Salary']].map(([k,l])=>`<div class="field"><label>${l}</label><input id="e_${k}" value="${esc(x?.[k]??"")}" ${x&&k==='employeeId'?'readonly':''}></div>`).join('')}</div><div class="actions"><button class="btn btn-primary">Save</button>${x?`<button type="button" class="btn btn-danger" onclick="window.delEmp('${x.id}')">Delete</button>`:''}</div></form>`;$('modal').classList.remove('hidden');$('ef').onsubmit=async e=>{e.preventDefault();const d={};['employeeId','name','department','machine','shiftType','mobile','joiningDate','designation'].forEach(k=>d[k]=$('e_'+k).value.trim());d.currentSalary=Number($('e_currentSalary').value)||0;d.active=true;try{await fb.setDoc(fb.doc(db,'manpower',d.employeeId),{...d,updatedAt:fb.serverTimestamp()},{merge:true});window.closeModal();toast('Employee saved')}catch(err){toast(friendly(err))}}}
 window.employee=employee;window.delEmp=async id=>{if(!confirm('Delete this employee?'))return;try{await fb.updateDoc(fb.doc(db,'manpower',id),{active:false,updatedAt:fb.serverTimestamp()});window.closeModal();toast('Employee deleted')}catch(e){toast(friendly(e))}};
 async function uploadCSV(){const f=$('csv')?.files?.[0];if(!f){toast('Choose CSV first');return}const text=await f.text(),lines=text.split(/\r?\n/).filter(x=>x.trim());if(lines.length<2){toast('CSV is empty');return}const parse=r=>r.match(/(".*?"|[^",]+)(?=,|$)/g)?.map(v=>v.replace(/^"|"$/g,'').trim())||[];const head=parse(lines[0]).map(x=>x.replace(/^\uFEFF/,''));const idx=n=>head.findIndex(x=>x.toLowerCase()===n.toLowerCase());let batch=fb.writeBatch(db),n=0;for(let i=1;i<lines.length;i++){const c=parse(lines[i]),id=c[idx('Employee_ID')];if(!id)continue;batch.set(fb.doc(db,'manpower',String(id)),{employeeId:String(id),name:c[idx('Name')]||'',department:c[idx('Department')]||'',machine:c[idx('Machine')]||'',shiftType:c[idx('Shift_type')]||'',mobile:c[idx('Mobile')]||'',joiningDate:c[idx('Joining_Date')]||'',designation:c[idx('Designation')]||'',currentSalary:Number((c[idx('Current_Salary')]||'0').replace(/,/g,''))||0,active:true,updatedAt:fb.serverTimestamp()},{merge:true});n++;if(n%400===0){await batch.commit();batch=fb.writeBatch(db)}}await batch.commit();toast(`${n} manpower records uploaded/updated`)}
-function reports(){const approved=ots.filter(x=>x.status==='approved');$("content").innerHTML=`<h1 class="page-title">OT Reports</h1><div class="muted">Select filters and click Generate. No selection means all approved OT.</div><div class="card section"><div class="filters"><div class="field"><label>From</label><input id="rf" type="date"></div><div class="field"><label>To</label><input id="rt" type="date"></div><div class="field"><label>Department</label><select id="rd"><option value="">All Departments</option>${[...new Set(approved.map(x=>x.department).filter(Boolean))].sort().map(x=>`<option>${esc(x)}</option>`).join('')}</select></div><div class="field"><label>Machine</label><select id="rm"><option value="">All Machines</option>${[...new Set(approved.map(x=>x.machine).filter(Boolean))].sort().map(x=>`<option>${esc(x)}</option>`).join('')}</select></div></div><div class="report-actions"><button class="btn btn-primary" onclick="window.buildReport()">Generate</button><button class="btn btn-light" onclick="window.exportCSV()">Download Excel</button><button class="btn btn-light" onclick="window.printReport()">Print / Save PDF</button></div><div class="report-note">Generate the report first. If From/To are empty, all approved OT records are included.</div></div><div id="reportOut" class="section"></div>`;window.buildReport()}
-window._reportRows=[];window.buildReport=()=>{let a=ots.filter(x=>x.status==='approved');const f=$("rf").value,t=$("rt").value,d=$("rd").value,m=$("rm").value;a=a.filter(x=>{const sd=x.startDate||x.otDate,ed=x.endDate||x.otDate;return(!f||ed>=f)&&(!t||sd<=t)&&(!d||x.department===d)&&(!m||x.machine===m)});window._reportRows=a;let total=0,hrs=0;const dept={},mach={};a.forEach(x=>{const es=x.actualEmployeeSnapshots||x.employeeSnapshots||[],span=Math.max(1,daysBetween(x.startDate||x.otDate,x.endDate||x.otDate));es.forEach(e=>{const h=Number(e.otHours||otHours(x.startTime,x.endTime));hrs+=h*span;const c=cost(e.currentSalary,h,x.startDate||x.otDate)*span;total+=c;dept[x.department||'—']??={hours:0,cost:0};dept[x.department||'—'].hours+=h*span;dept[x.department||'—'].cost+=c;mach[x.machine||'—']??={hours:0,cost:0};mach[x.machine||'—'].hours+=h*span;mach[x.machine||'—'].cost+=c})});$("reportOut").innerHTML=`<div id="printArea"><div class="print-company-header"><div class="company">RR IMPERIAL ELECTRICALS LIMITED</div><div class="address">Senpara, Kanchpur, Sonargaon, Narayanganj</div><div class="title">Over Time Management</div></div><div class="grid4"><div class="stat"><div class="label">Requests</div><div class="value">${a.length}</div></div><div class="stat"><div class="label">Employees</div><div class="value">${new Set(a.flatMap(x=>(x.actualEmployeeSnapshots||x.employeeSnapshots||[]).map(e=>e.employeeId))).size}</div></div><div class="stat"><div class="label">OT Hours</div><div class="value">${hrs.toFixed(1)}</div></div><div class="stat"><div class="label">Estimated Cost</div><div class="value">${money(total)}</div></div></div><div class="report-section"><div class="card"><h3>Department-wise</h3>${summaryTable(dept)}</div></div><div class="report-section"><div class="card"><h3>Machine-wise</h3>${summaryTable(mach)}</div></div><div class="card section"><h3>Detailed OT</h3>${table(a,false)}</div></div>`};function summaryTable(o){return`<div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Hours</th><th>Estimated Cost</th></tr></thead><tbody>${Object.entries(o).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.hours.toFixed(1)}</td><td>${money(v.cost)}</td></tr>`).join('')||'<tr><td colspan="3">No data</td></tr>'}</tbody></table></div>`}
-window.exportCSV=()=>{const rows=window._reportRows||[];if(!rows.length){toast('No report data. Click Generate first.');return}let csv='Date,Department,Machine,Shift,Employee,OT Hours,Estimated Cost,Status\n';rows.forEach(x=>{const es=x.actualEmployeeSnapshots||x.employeeSnapshots||[],span=Math.max(1,daysBetween(x.startDate||x.otDate,x.endDate||x.otDate));es.forEach(e=>{const h=Number(e.otHours||otHours(x.startTime,x.endTime))*span,c=cost(e.currentSalary,Number(e.otHours||otHours(x.startTime,x.endTime)),x.startDate||x.otDate)*span;csv+=`"${x.startDate||x.otDate}","${x.department}","${x.machine||''}","${x.otShift}","${e.name}",${h.toFixed(2)},${c.toFixed(2)},"${x.status}"\n`})});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='OT-Report.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)};window.printReport=()=>{if(!window._reportRows?.length){toast('Generate a report first.');return}document.body.classList.add("printing-report");window.print();setTimeout(()=>document.body.classList.remove("printing-report"),500)};
+function reports(){
+  const approved=ots.filter(x=>x.status==='approved');
+  const deps=[...new Set(approved.map(x=>x.department).filter(Boolean))].sort();
+  const machines=[...new Set(approved.map(x=>x.machine).filter(Boolean))].sort();
+  // Build employee list from manpower (with fallback to OT snapshots)
+  const empList={};
+  manpower.forEach(m=>{const k=String(m.employeeId||m.id||'');if(k&&!empList[k])empList[k]={id:k,name:m.name||'',dept:m.department||'',machine:m.machine||''}});
+  approved.forEach(x=>{(x.actualEmployeeSnapshots||x.employeeSnapshots||[]).forEach(e=>{const k=String(e.employeeId||e.id||'');if(k&&!empList[k])empList[k]={id:k,name:e.name||'',dept:x.department||'',machine:x.machine||''}})});
+
+  // Build month options using LOCAL time (not UTC) to avoid timezone bug
+  const now=new Date();
+  const monthOpts=[];
+  for(let i=0;i<12;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const y=d.getFullYear();
+    const mo=String(d.getMonth()+1).padStart(2,'0');
+    const val=`${y}-${mo}`;
+    const label=d.toLocaleString('en',{month:'long',year:'numeric'});
+    monthOpts.push(`<option value="${val}">${label}</option>`);
+  }
+
+  $("content").innerHTML=`<h1 class="page-title">OT Reports</h1>
+    <div class="muted">Select a report type and click Generate.</div>
+    <div class="card section">
+      <div class="report-tabs">
+        <button class="report-tab active" data-tab="general" onclick="window.switchReportTab('general')">📋 General Report</button>
+        <button class="report-tab" data-tab="employee" onclick="window.switchReportTab('employee')">👤 Employee Report</button>
+      </div>
+      <div id="generalFilters">
+        <div class="filters">
+          <div class="field"><label>From</label><input id="rf" type="date"></div>
+          <div class="field"><label>To</label><input id="rt" type="date"></div>
+          <div class="field"><label>Department</label><select id="rd"><option value="">All Departments</option>${deps.map(x=>`<option>${esc(x)}</option>`).join('')}</select></div>
+          <div class="field"><label>Machine</label><select id="rm"><option value="">All Machines</option>${machines.map(x=>`<option>${esc(x)}</option>`).join('')}</select></div>
+        </div>
+      </div>
+      <div id="employeeFilters" class="hidden">
+        <div class="filters">
+          <div class="field"><label>Employee (Search by ID or Name)</label>
+            <div class="emp-search-wrap">
+              <input id="reEmpSearch" type="text" placeholder="Type employee ID or name..." autocomplete="off" oninput="window.searchEmployee(this.value)">
+              <div id="reEmpResults" class="emp-search-results"></div>
+              <input id="reEmp" type="hidden" value="">
+            </div>
+          </div>
+          <div class="field"><label>Month & Year</label><select id="reMonth">${monthOpts.join('')}</select></div>
+        </div>
+      </div>
+      <div class="report-actions" style="margin-top:14px">
+        <button class="btn btn-primary" onclick="window.buildReport()">Generate</button>
+        <button class="btn btn-light" onclick="window.exportCSV()">Download Excel</button>
+        <button class="btn btn-light" onclick="window.printReport()">Print / Save PDF</button>
+      </div>
+      <div class="report-note">Generate the report first. For General Report: if From/To are empty, all approved OT records are included.</div>
+    </div>
+    <div id="reportOut" class="section"></div>`;
+}
+
+window._empListCache={};
+window.searchEmployee=q=>{
+  const resultsBox=$("reEmpResults");
+  const hiddenInput=$("reEmp");
+  const searchInput=$("reEmpSearch");
+  if(!q||q.trim().length<1){
+    resultsBox.classList.remove('show');
+    resultsBox.innerHTML='';
+    hiddenInput.value='';
+    return;
+  }
+  const ql=q.toLowerCase();
+  const empArr=Object.values(window._empListCache).filter(e=>String(e.id).toLowerCase().includes(ql)||String(e.name).toLowerCase().includes(ql));
+  if(empArr.length===0){
+    resultsBox.innerHTML='<div class="emp-search-item" style="color:var(--muted)">No employee found</div>';
+    resultsBox.classList.add('show');
+    return;
+  }
+  resultsBox.innerHTML=empArr.slice(0,30).map(e=>`<div class="emp-search-item" onclick="window.selectEmployee('${esc(e.id)}','${esc(e.name).replace(/'/g,"\'")}')"><span class="id">${esc(e.id)}</span><span class="name">${esc(e.name)}</span><br><small class="muted">${esc(e.dept||'—')} • ${esc(e.machine||'—')}</small></div>`).join('');
+  resultsBox.classList.add('show');
+};
+window.selectEmployee=(id,name)=>{
+  $("reEmp").value=id;
+  $("reEmpSearch").value=`${id} - ${name}`;
+  $("reEmpResults").classList.remove('show');
+  $("reEmpResults").innerHTML='';
+};
+
+window.switchReportTab=tab=>{
+  document.querySelectorAll('.report-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  $("generalFilters").classList.toggle('hidden',tab!=='general');
+  $("employeeFilters").classList.toggle('hidden',tab!=='employee');
+  $("reportOut").innerHTML='';
+  window._reportRows=[];
+  window._empReportMode=(tab==='employee');
+};
+
+window._reportRows=[];window._empReportMode=false;window._empRecords=[];window._empInfo=null;window._empMonth='';
+window.buildReport=()=>{
+  if(window._empReportMode){
+    window.buildEmployeeReport();
+    return;
+  }
+  let a=ots.filter(x=>x.status==='approved');
+  const f=$("rf")?.value,t=$("rt")?.value,d=$("rd")?.value,m=$("rm")?.value;
+  a=a.filter(x=>{const sd=x.startDate||x.otDate,ed=x.endDate||x.otDate;return(!f||ed>=f)&&(!t||sd<=t)&&(!d||x.department===d)&&(!m||x.machine===m)});
+  window._reportRows=a;
+  let total=0,hrs=0;const dept={};
+  a.forEach(x=>{
+    const es=x.actualEmployeeSnapshots||x.employeeSnapshots||[],span=Math.max(1,daysBetween(x.startDate||x.otDate,x.endDate||x.otDate));
+    es.forEach(e=>{
+      const h=Number(e.otHours||otHours(x.startTime,x.endTime));
+      hrs+=h*span;
+      const c=cost(e.currentSalary,h,x.startDate||x.otDate)*span;
+      total+=c;
+      dept[x.department||'—']??={hours:0,cost:0};
+      dept[x.department||'—'].hours+=h*span;
+      dept[x.department||'—'].cost+=c;
+    });
+  });
+  const empCount=new Set(a.flatMap(x=>(x.actualEmployeeSnapshots||x.employeeSnapshots||[]).map(e=>e.employeeId))).size;
+  $("reportOut").innerHTML=`<div id="printArea">
+    <div class="print-company-header"><div class="company">RR IMPERIAL ELECTRICALS LIMITED</div><div class="address">Senpara, Kanchpur, Sonargaon, Narayanganj</div><div class="title">Over Time Management</div></div>
+    <div class="grid4">
+      <div class="stat"><div class="label">Requests</div><div class="value">${a.length}</div></div>
+      <div class="stat"><div class="label">Employees</div><div class="value">${empCount}</div></div>
+      <div class="stat"><div class="label">OT Hours</div><div class="value">${hrs.toFixed(1)}</div></div>
+      <div class="stat"><div class="label">Estimated Cost</div><div class="value">${money(total)}</div></div>
+    </div>
+    <div class="report-section"><div class="card"><h3>Department-wise Summary</h3>${summaryTable(dept)}</div></div>
+  </div>`;
+};
+
+window.buildEmployeeReport=()=>{
+  const empId=$("reEmp")?.value,month=$("reMonth")?.value;
+  if(!empId){toast('Please search and select an employee');return;}
+  if(!month){toast('Please select month & year');return;}
+  const emp=manpower.find(m=>String(m.employeeId||m.id)===String(empId));
+  if(!emp){toast('Employee not found in manpower');return;}
+  const records=[];
+  ots.filter(x=>x.status==='approved').forEach(x=>{
+    const sd=x.startDate||x.otDate,ed=x.endDate||x.otDate;
+    const span=Math.max(1,daysBetween(sd,ed));
+    const es=x.actualEmployeeSnapshots||x.employeeSnapshots||[];
+    for(let i=0;i<span;i++){
+      const d=addDays(sd,i);
+      if(d.slice(0,7)!==month)continue;
+      const empSnap=es.find(e=>String(e.employeeId||e.id)===String(empId));
+      if(!empSnap)continue;
+      const h=Number(empSnap.otHours||otHours(x.startTime,x.endTime));
+      const c=cost(empSnap.currentSalary,h,sd);
+      records.push({date:d,department:x.department,machine:x.machine,startTime:empSnap.otStartTime||x.startTime||'',endTime:empSnap.otEndTime||x.endTime||'',hours:h,cost:c});
+    }
+  });
+  records.sort((a,b)=>a.date.localeCompare(b.date));
+  window._reportRows=[];
+  window._empRecords=records;
+  window._empInfo=emp;
+  window._empMonth=month;
+  const totalH=records.reduce((n,r)=>n+r.hours,0);
+  const totalC=records.reduce((n,r)=>n+r.cost,0);
+  // Build month label using LOCAL date to avoid timezone bug
+  const [yy,mm]=month.split('-');
+  const monthLabel=new Date(Number(yy),Number(mm)-1,1).toLocaleString('en',{month:'long',year:'numeric'});
+  const rowsHtml=records.length?records.map((r,i)=>`<tr>
+    <td>${String(i+1).padStart(2,'0')}</td>
+    <td>${esc(r.date)}</td>
+    <td>${esc(r.department||'—')}</td>
+    <td>${esc(r.machine||'—')}</td>
+    <td>${esc(r.startTime)}</td>
+    <td>${esc(r.endTime)}</td>
+    <td>${r.hours.toFixed(2)} H</td>
+    <td>${money(r.cost)}</td>
+  </tr>`).join(''):'<tr><td colspan="8" class="empty">No OT records found for this employee in this month</td></tr>';
+  $("reportOut").innerHTML=`<div id="printArea">
+    <div class="print-company-header"><div class="company">RR IMPERIAL ELECTRICALS LIMITED</div><div class="address">Senpara, Kanchpur, Sonargaon, Narayanganj</div><div class="title">Employee OT Report - ${monthLabel}</div></div>
+    <div class="emp-info-grid">
+      <div class="emp-info-item"><div class="label">Employee ID</div><div class="value">${esc(emp.employeeId||emp.id)}</div></div>
+      <div class="emp-info-item"><div class="label">Name</div><div class="value">${esc(emp.name)}</div></div>
+      <div class="emp-info-item"><div class="label">Department</div><div class="value">${esc(emp.department||'—')}</div></div>
+      <div class="emp-info-item"><div class="label">Designation</div><div class="value">${esc(emp.designation||'—')}</div></div>
+      <div class="emp-info-item"><div class="label">Current Salary</div><div class="value">${money(emp.currentSalary)}</div></div>
+      <div class="emp-info-item"><div class="label">Month</div><div class="value">${monthLabel}</div></div>
+    </div>
+    <div class="grid4">
+      <div class="stat"><div class="label">Total OT Days</div><div class="value">${records.length}</div></div>
+      <div class="stat"><div class="label">Total OT Hours</div><div class="value">${totalH.toFixed(2)} H</div></div>
+      <div class="stat"><div class="label">Total Estimated Cost</div><div class="value">${money(totalC)}</div></div>
+      <div class="stat"><div class="label">Avg Hours/Day</div><div class="value">${records.length?(totalH/records.length).toFixed(2):'0.00'} H</div></div>
+    </div>
+    <div class="card section"><h3>Day-by-Day OT Detail</h3>
+      <div class="table-wrap"><table class="table"><thead><tr><th>SL</th><th>Date</th><th>Department</th><th>Machine</th><th>Start Time</th><th>End Time</th><th>OT Hours</th><th>Estimated Cost</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+      <tfoot><tr><td colspan="6"><b>Total</b></td><td><b>${totalH.toFixed(2)} H</b></td><td><b>${money(totalC)}</b></td></tr></tfoot>
+      </table></div>
+    </div>
+  </div>`;
+};
+
+function summaryTable(o){
+  return`<div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Hours</th><th>Estimated Cost</th></tr></thead><tbody>${Object.entries(o).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.hours.toFixed(1)}</td><td>${money(v.cost)}</td></tr>`).join('')||'<tr><td colspan="3">No data</td></tr>'}</tbody></table></div>`;
+}
+
+window.exportCSV=()=>{
+  if(window._empReportMode){
+    const records=window._empRecords||[],emp=window._empInfo,month=window._empMonth;
+    if(!records.length&&!(emp&&month)){toast('No report data. Click Generate first.');return;}
+    const [yy,mm]=month.split('-');
+    const monthLabel=new Date(Number(yy),Number(mm)-1,1).toLocaleString('en',{month:'long',year:'numeric'});
+    let csv=`# Employee OT Report\n`;
+    csv+=`Employee ID,Name,Department,Designation,Salary,Month\n`;
+    csv+=`"${emp.employeeId||emp.id}","${emp.name}","${emp.department||''}","${emp.designation||''}","${money(emp.currentSalary)}","${monthLabel}"\n\n`;
+    csv+=`SL,Date,Department,Machine,Start Time,End Time,OT Hours,Estimated Cost\n`;
+    records.forEach((r,i)=>{
+      csv+=`${i+1},"${r.date}","${r.department||''}","${r.machine||''}","${r.startTime}","${r.endTime}",${r.hours.toFixed(2)},${r.cost.toFixed(2)}\n`;
+    });
+    const totalH=records.reduce((n,r)=>n+r.hours,0);
+    const totalC=records.reduce((n,r)=>n+r.cost,0);
+    csv+=`\n,,,,,,Total,${totalH.toFixed(2)},${totalC.toFixed(2)}\n`;
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    a.download=`Employee-OT-${emp.employeeId||emp.id}-${month||'report'}.csv`;
+    a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
+    return;
+  }
+  const rows=window._reportRows||[];
+  if(!rows.length){toast('No report data. Click Generate first.');return;}
+  let csv='Date,Department,Machine,Shift,Employee,OT Hours,Estimated Cost,Status\n';
+  rows.forEach(x=>{
+    const es=x.actualEmployeeSnapshots||x.employeeSnapshots||[],span=Math.max(1,daysBetween(x.startDate||x.otDate,x.endDate||x.otDate));
+    es.forEach(e=>{
+      const h=Number(e.otHours||otHours(x.startTime,x.endTime))*span,c=cost(e.currentSalary,Number(e.otHours||otHours(x.startTime,x.endTime)),x.startDate||x.otDate)*span;
+      csv+=`"${x.startDate||x.otDate}","${x.department}","${x.machine||''}","${x.otShift}","${e.name}",${h.toFixed(2)},${c.toFixed(2)},"${x.status}"\n`;
+    });
+  });
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='OT-Report.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
+};
+
+window.printReport=()=>{
+  const isEmp=window._empReportMode;
+  if(isEmp){
+    if(!(window._empRecords&&window._empInfo)){toast('Generate a report first.');return;}
+  }else{
+    if(!window._reportRows?.length){toast('Generate a report first.');return;}
+  }
+  document.body.classList.add("printing-report");
+  window.print();
+  setTimeout(()=>document.body.classList.remove("printing-report"),500);
+};
+
 function users(){
   if(profile.role!=="admin"){$('content').innerHTML=`<h1 class="page-title">Users</h1><div class="card section"><strong>Your current role: ${esc(profile.role)}</strong></div>`;return}
   const rows=machineWiseRows();
@@ -420,7 +667,7 @@ window.cleanupData=async type=>{
     }catch(e){$('bulkFinal').disabled=false;$('bulkFinal').textContent='Confirm Delete';toast(friendly(e))}
   }
 };
-function listen(){const mq=fb.query(fb.collection(db,'manpower'),fb.where('active','==',true));unsub.push(fb.onSnapshot(mq,s=>{manpower=s.docs.map(d=>({id:d.id,...d.data()}));if(['manpower','request','dashboard','users'].includes(page))show(page)},e=>{$('firebaseError').textContent='Firestore error: '+friendly(e);$('firebaseError').classList.add('show')}));unsub.push(fb.onSnapshot(fb.collection(db,'machineRequirements'),s=>{machineRequirements=s.docs.map(d=>({id:d.id,...d.data()}));if(['dashboard','users'].includes(page))show(page)},e=>toast('Requirement data error: '+friendly(e))));let q=fb.query(fb.collection(db,'otRequests'));if(profile.role==='shift_incharge')q=fb.query(fb.collection(db,'otRequests'),fb.where('requestedByUid','==',me.uid));unsub.push(fb.onSnapshot(q,s=>{ots=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const sa=Number(a.sequence)||0,sb=Number(b.sequence)||0;if(sa!==sb)return sb-sa;const da=a.submittedAt?.seconds||a.createdAt?.seconds||0,db=b.submittedAt?.seconds||b.createdAt?.seconds||0;return db-da});if(['dashboard','approval','manage','calendar','reports'].includes(page))show(page)},e=>toast('OT data error: '+friendly(e))))}
+function listen(){const mq=fb.query(fb.collection(db,'manpower'),fb.where('active','==',true));unsub.push(fb.onSnapshot(mq,s=>{manpower=s.docs.map(d=>({id:d.id,...d.data()}));window._empListCache={};manpower.forEach(m=>{const k=String(m.employeeId||m.id||'');if(k)window._empListCache[k]={id:k,name:m.name||'',dept:m.department||'',machine:m.machine||''}});if(['manpower','request','dashboard','users','reports'].includes(page))show(page)},e=>{$('firebaseError').textContent='Firestore error: '+friendly(e);$('firebaseError').classList.add('show')}));unsub.push(fb.onSnapshot(fb.collection(db,'machineRequirements'),s=>{machineRequirements=s.docs.map(d=>({id:d.id,...d.data()}));if(['dashboard','users'].includes(page))show(page)},e=>toast('Requirement data error: '+friendly(e))));let q=fb.query(fb.collection(db,'otRequests'));if(profile.role==='shift_incharge')q=fb.query(fb.collection(db,'otRequests'),fb.where('requestedByUid','==',me.uid));unsub.push(fb.onSnapshot(q,s=>{ots=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const sa=Number(a.sequence)||0,sb=Number(b.sequence)||0;if(sa!==sb)return sb-sa;const da=a.submittedAt?.seconds||a.createdAt?.seconds||0,db=b.submittedAt?.seconds||b.createdAt?.seconds||0;return db-da});if(['dashboard','approval','manage','calendar','reports'].includes(page))show(page)},e=>toast('OT data error: '+friendly(e))))}
 try{const [{initializeApp},{getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut},{getFirestore,collection,doc,getDoc,getDocs,addDoc,setDoc,updateDoc,deleteDoc,query,where,onSnapshot,serverTimestamp,writeBatch}]=await Promise.all([import('https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js'),import('https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js'),import('https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js')]);fb={initializeApp,getAuth,signInWithEmailAndPassword,signOut,getFirestore,collection,doc,getDoc,getDocs,addDoc,setDoc,updateDoc,deleteDoc,query,where,onSnapshot,serverTimestamp,writeBatch};const app=initializeApp(cfg);auth=getAuth(app);db=getFirestore(app);onAuthStateChanged(auth,async u=>{cleanup();if(!u){$("login").classList.remove('hidden');$("app").classList.add('hidden');return}try{me=u;const s=await getDoc(doc(db,'users',u.uid));if(!s.exists()){await signOut(auth);loginErr('Your account has no role profile in Firestore.');return}profile={id:s.id,...s.data()};$("login").classList.add('hidden');$("app").classList.remove('hidden');$("userBadge").textContent=`${profile.name||u.email} • ${profile.role}`;document.querySelectorAll('.admin-only').forEach(x=>x.classList.toggle('hidden',profile.role!=='admin'));document.querySelectorAll('.admin-or-hod').forEach(x=>x.classList.toggle('hidden',!['admin','hod'].includes(profile.role)));listen();show('dashboard')}catch(e){loginErr('Login succeeded, but Firestore role lookup failed: '+friendly(e))}})}catch(e){$('firebaseError').textContent='Firebase could not load. If you opened this HTML by double-clicking, please run it from localhost/GitHub Pages. Details: '+friendly(e);$('firebaseError').classList.add('show')}
 window.show=show;
 </script>
